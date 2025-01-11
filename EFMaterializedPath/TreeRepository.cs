@@ -10,16 +10,16 @@ namespace EFMaterializedPath;
 public class TreeRepository<TDbContext, TEntity, TId>(
     TDbContext dbContext,
     IIdentifierSerializer<TId> identifierSerializer
-)
-    : ITreeRepository<TEntity, TId>
+) : ITreeRepository<TEntity, TId>
     where TEntity : class, IMaterializedPathEntity<TId>
     where TDbContext : DbContext
     where TId : struct
 {
-    private DbSet<TEntity> Set => dbContext.Set<TEntity>() ??
-                                  throw new InvalidOperationException(
-                                      $"Failed to retrieve DbSet for {typeof(TEntity).FullName}"
-                                  );
+    private DbSet<TEntity> Set =>
+        dbContext.Set<TEntity>()
+        ?? throw new InvalidOperationException(
+            $"Failed to retrieve DbSet for {typeof(TEntity).FullName}"
+        );
 
     public IQueryable<TEntity?> QueryRoots()
     {
@@ -73,8 +73,7 @@ public class TreeRepository<TDbContext, TEntity, TId>(
         AssertIsStoredEntity(entity);
         var siblingPath = FormatPath(ParsePath(entity.Path));
 
-        return Set
-            .Where(e => e.Path == siblingPath && !e.Id.Equals(entity.Id));
+        return Set.Where(e => e.Path == siblingPath && !e.Id.Equals(entity.Id));
     }
 
     public async Task<IEnumerable<TEntity>> GetPathFromRootAsync(TEntity entity)
@@ -83,10 +82,9 @@ public class TreeRepository<TDbContext, TEntity, TId>(
 
         var path = ParsePath(entity.Path);
 
-        return (await Set
-                .Where(e => path.Contains(e.Id))
-                .ToListAsync())
-            .OrderBy(o => path.IndexOf(o.Id));
+        return (await Set.Where(e => path.Contains(e.Id)).ToListAsync()).OrderBy(o =>
+            path.IndexOf(o.Id)
+        );
     }
 
     public async Task<TEntity?> GetParentAsync(TEntity entity)
@@ -122,9 +120,19 @@ public class TreeRepository<TDbContext, TEntity, TId>(
 
         foreach (var descendant in await QueryDescendants(entity).ToListAsync())
         {
-            var newDescendantPath = ParsePath(descendant.Path.Replace(oldPath, newPath));
-            descendant.Path = FormatPath(newDescendantPath);
-            descendant.Level = newDescendantPath.Count;
+            if (!string.IsNullOrEmpty(oldPath))
+            {
+                var newDescendantPath = ParsePath(descendant.Path.Replace(oldPath, newPath));
+                descendant.Path = FormatPath(newDescendantPath);
+                descendant.Level = newDescendantPath.Count;
+            }
+            else
+            {
+                var descendantPath = ParsePath(descendant.Path);
+                descendantPath.InsertRange(0, path);
+                descendant.Path = FormatPath(descendantPath);
+                descendant.Level = descendantPath.Count;
+            }
         }
 
         entity.Level = path.Count;
@@ -173,12 +181,7 @@ public class TreeRepository<TDbContext, TEntity, TId>(
 
     private string FormatPath(IEnumerable<TId> path)
     {
-        var joined = string.Join(
-            "|",
-            path.Select(
-                identifierSerializer.SerializeIdentifier
-            )
-        );
+        var joined = string.Join("|", path.Select(identifierSerializer.SerializeIdentifier));
 
         if (joined.Length > 0)
         {
@@ -190,7 +193,8 @@ public class TreeRepository<TDbContext, TEntity, TId>(
 
     private List<TId> ParsePath(string? path)
     {
-        if (string.IsNullOrEmpty(path)) return new List<TId>();
+        if (string.IsNullOrEmpty(path))
+            return new List<TId>();
 
         var split = path.Split('|', StringSplitOptions.RemoveEmptyEntries);
         return split.Select(identifierSerializer.DeserializeIdentifier).ToList();

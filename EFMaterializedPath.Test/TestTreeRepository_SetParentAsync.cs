@@ -62,6 +62,22 @@ public class TestTreeRepository_SetParentAsync : TreeRepositoryTestBase
     }
 
     [Fact]
+    public async Task SetParentToUnparantedSubtree()
+    {
+        var one = await DbContext.Set<Category>().FindAsync(1);
+        var two = await DbContext.Set<Category>().FindAsync(2);
+        var five = await DbContext.Set<Category>().FindAsync(5);
+
+        await Repository.SetParentAsync(two, null);
+        two.Path.Should().Be("");
+        five.Path.Should().Be("|2|");
+
+        await Repository.SetParentAsync(two, one);
+        two.Path.Should().Be("|1|");
+        five.Path.Should().Be("|1|2|");
+    }
+
+    [Fact]
     public async Task ThrowsOnNonStoredEntity()
     {
         Func<Task> nullEntity = async () => await Repository.SetParentAsync(null!, null);
@@ -71,7 +87,7 @@ public class TestTreeRepository_SetParentAsync : TreeRepositoryTestBase
         await nonStored.Should().ThrowAsync<InvalidOperationException>();
 
         Func<Task> nonStoredParent = async () =>
-            await Repository.SetParentAsync(new Category() {Id = 1}, new Category());
+            await Repository.SetParentAsync(new Category() { Id = 1 }, new Category());
         await nonStoredParent.Should().ThrowAsync<InvalidOperationException>();
     }
 }
